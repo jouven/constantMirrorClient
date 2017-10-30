@@ -572,7 +572,7 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
 
                         int_fast32_t sourceSubstringIndex(0);
 
-                        if (sourcePath_pri.endsWith(QDir::separator()))
+                        if (sourcePath_pri.endsWith(guessedSeparator_pri))
                         {
                             sourceSubstringIndex = remoteItem_ite.second.filename_pub.size() - sourcePath_pri.size();
                         }
@@ -739,25 +739,40 @@ void mirrorConfigSourceDestinationMapping_c::checkValid_f()
         }
     }
 
-    //not very portable? but let's assume
-    //source paths starting with '/' use '/' as directory separator
-    //else '\\'
-    //client OS is known but server must be "guessed"
-    QChar sourceLastChar(sourcePath_pri.right(1).at(0));
-    if (destinationPath_pri.endsWith(QDir::separator()) and (sourceLastChar != '/' and sourceLastChar != '\\'))
+    if (not sourcePath_pri.isEmpty())
     {
-        if (sourcePath_pri.at(0) == '/')
+        //not very portable? but let's assume
+        //source paths starting with '/' use '/' as directory separator
+        //else '\\'
+        //client OS is known but server must be "guessed"
+        QChar sourceFirstChar(sourcePath_pri.at(0));
+        if (sourceFirstChar == '/')
         {
-            sourcePath_pri.append("/");
+            guessedSeparator_pri = '/';
         }
         else
         {
-            sourcePath_pri.append("\\");
+            //this (and sourceFirstChar == '/') forces abosulute path in source and destination
+            if (sourceFirstChar == '\\')
+            {
+                guessedSeparator_pri = '\\';
+            }
+            else
+            {
+                appendError_f("Failed to guess server's directory separator, source paths must start with / or \\");
+                isValidTmp = false;
+            }
         }
-    }
-    if (not destinationPath_pri.endsWith(QDir::separator()) and (sourceLastChar == '/' or sourceLastChar == '\\'))
-    {
-        destinationPath_pri.append(QDir::separator());
+        QChar sourceLastChar(sourcePath_pri.right(1).at(0));
+        if (destinationPath_pri.endsWith(QDir::separator()) and (sourceLastChar != guessedSeparator_pri))
+        {
+            sourcePath_pri.append(guessedSeparator_pri);
+        }
+
+        if (not destinationPath_pri.endsWith(QDir::separator()) and sourceLastChar == guessedSeparator_pri)
+        {
+            destinationPath_pri.append(QDir::separator());
+        }
     }
 
     if (localCheckIntervalMilliseconds_pri < 1)

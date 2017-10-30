@@ -143,6 +143,8 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
     bool isSingleFileSet_pri = false;
 
     bool remoteTriedOnce_pri = false;
+
+    QChar guessedSeparator_pri = '\0';
 public:
     mirrorConfigSourceDestinationMapping_c();
 
