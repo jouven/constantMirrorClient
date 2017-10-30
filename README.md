@@ -3,7 +3,8 @@ Client-side program that mirrors remote paths to the local filesystem using tcp 
 
 Compilation
 -----------
-Requires: 
+Requires:
+
 Qt library
 
 https://github.com/jouven/criptoso
