@@ -94,6 +94,26 @@ QHostAddress mirrorConfigSourceDestinationMapping_c::sourceAddress_f() const
     return sourceAddress_pri;
 }
 
+bool mirrorConfigSourceDestinationMapping_c::remoteTriedOnce_f() const
+{
+    return remoteTriedOnce_pri;
+}
+
+void mirrorConfigSourceDestinationMapping_c::printRemoteFileList_f() const
+{
+
+    if (initialRemoteScanSet_pri)
+    {
+        fileStatusArrayPlusHostInfo_s objToSerialize(remoteFileStatusUMAP_pri, sourceAddressStr_pri, sourceRequestPort_pri);
+        QJsonObject jsonObjectTmp;
+        objToSerialize.write_f(jsonObjectTmp);
+
+        QJsonDocument jsonDocTmp(jsonObjectTmp);
+
+        QOUT_TS(jsonDocTmp.toJson(QJsonDocument::JsonFormat::Indented));
+    }
+}
+
 mirrorConfigSourceDestinationMapping_c::mirrorConfigSourceDestinationMapping_c()
     : id_pri(generateId_f())
 {
@@ -393,12 +413,16 @@ void mirrorConfigSourceDestinationMapping_c::checkRemoteFiles_f()
             }
             else
             {
-                //it's set to false at the begining of requestFileList
+            //it's set to false at the begining of requestFileList
             }
             if (not initialRemoteScanSet_pri)
             {
                 initialRemoteScanSet_pri = true;
             }
+        }
+        if (not remoteTriedOnce_pri)
+        {
+            remoteTriedOnce_pri = true;
         }
     });
     QObject::connect(fileListRequestThreadTmp, &QObject::destroyed, [this]{ remoteScanThreadExists_pri = false; });
@@ -563,7 +587,9 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
                         }
                         else
                         {
-                            destinationRelativePath = remoteItem_ite.second.filename_pub.right(sourceSubstringIndex);
+                            //here destination relative path is built using a remote path which can be windows or *nix type
+                            //so QDir::toNativeSeparators
+                            destinationRelativePath = QDir::toNativeSeparators(remoteItem_ite.second.filename_pub.right(sourceSubstringIndex));
                         }
 
                         if (destinationPath_pri.endsWith(QDir::separator()))
@@ -645,9 +671,10 @@ void mirrorConfigSourceDestinationMapping_c::download_f()
     //posar locker
     //QMutexLocker lockerATmp(getAddMutex_f(QString::number(id_pri).toStdString() + "download"));
     while (
-           (currentDownloadCount_pri < maxDownloadCount_pri)
-           and (mirrorConfig_ext.maxCurrentDownloadCount_f() < mirrorConfig_ext.maxDownloadCountGlobal_f()
-           and not filesToDownload_pri.empty())
+           eines::signal::isRunning_f()
+           and currentDownloadCount_pri < maxDownloadCount_pri
+           and mirrorConfig_ext.maxCurrentDownloadCount_f() < mirrorConfig_ext.maxDownloadCountGlobal_f()
+           and not filesToDownload_pri.empty()
     )
     {
         currentDownloadCount_pri = currentDownloadCount_pri + 1;
@@ -774,10 +801,10 @@ uint_fast32_t mirrorConfig_c::maxDownloadCountGlobal_f() const
     return maxDownloadCountGlobal_pri;
 }
 
-std::vector<mirrorConfigSourceDestinationMapping_c> mirrorConfig_c::sourceDestinationMappings_f() const
-{
-    return sourceDestinationMappings_pri;
-}
+//std::vector<mirrorConfigSourceDestinationMapping_c> mirrorConfig_c::sourceDestinationMappings_f() const
+//{
+//    return sourceDestinationMappings_pri;
+//}
 
 void mirrorConfig_c::checkValid_f()
 {
@@ -848,12 +875,22 @@ void mirrorConfig_c::checkValid_f()
     valid_pri = validResult;
 }
 
+void mirrorConfig_c::printAllRemoteFileLists_f() const
+{
+    QOUT_TS("\nPrinting current remote file lists\n");
+    for (const mirrorConfigSourceDestinationMapping_c& sourceDestinationMapping_ite_con : sourceDestinationMappings_pri)
+    {
+        sourceDestinationMapping_ite_con.printRemoteFileList_f();
+    }
+}
+
 void mirrorConfig_c::read_f(const QJsonObject &json)
 {
     selfServerAddressStr_pri = json["selfServerAddress"].toString();
     updateServerPort_pri = json["updateServerPort"].toInt();
     //requestServerPort_pri = json["requestServerPort"].toInt();
     //fileServerPort_pri = json["fileServerPort"].toInt();
+    tryPrintRemoteFileListOnceAndQuit_pri = json["tryPrintRemoteFileListOnceAndQuit"].toBool(false);
 
     QJsonArray arrayTmp(json["sourceDestinationMappings"].toArray());
     sourceDestinationMappings_pri.reserve(arrayTmp.size());
@@ -878,6 +915,7 @@ void mirrorConfig_c::write_f(QJsonObject &json) const
     json["sourceDestinationMappings"] = sourceDestinationMappingArrayTmp;
     json["selfServerAddress"] = selfServerAddressStr_pri;
     json["updateServerPort"] = updateServerPort_pri;
+    json["tryPrintRemoteFileListOnceAndQuit"] = tryPrintRemoteFileListOnceAndQuit_pri;
     //json["requestServerPort"] = requestServerPort_pri;
     //json["fileServerPort"] = fileServerPort_pri;
 }
@@ -1094,6 +1132,18 @@ uint_fast32_t mirrorConfig_c::maxCurrentDownloadCount_f() const
     return counter;
 }
 
+bool mirrorConfig_c::allRemotesTriedOnce_f() const
+{
+    for (const mirrorConfigSourceDestinationMapping_c& item_ite_con : sourceDestinationMappings_pri)
+    {
+        if (not item_ite_con.remoteTriedOnce_f())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void mirrorConfig_c::setRemoteHasUpdated_f(
         const QHostAddress &address_par_con
         , const quint16 port_par_con)
@@ -1140,31 +1190,88 @@ void mirrorConfig_c::mainLoop_f()
     //QOUT_TS("operationsConfig_c::mainLoop() qthreads counter " << QThreadCount_f() << endl);
     if (eines::signal::isRunning_f())
     {
-        //not threaded, but, IT NEEDS A TEST, several download objects are created to download more than one file at time
-        //IT DOESN'T CREATE ANY THREADS THOUGH
-        downloadFiles_f();
-
-        //threaded
-        compareLocalAndRemote_f();
-
-        if (not localScanThreadExists_pri)
+        if (not tryPrintRemoteFileListOnceAndQuit_pri)
         {
-            threadedFunction_c* localScanThreadTmp = new threadedFunction_c(std::bind(&mirrorConfig_c::localScan_f, this), qtAppRef_ext);
-            QObject::connect(localScanThreadTmp, &QThread::destroyed, [this]
+            //not threaded, but, IT NEEDS A TEST, several download objects are created to download more than one file at time
+            //IT DOESN'T CREATE ANY THREADS THOUGH
+            downloadFiles_f();
+
+            //threaded
+            compareLocalAndRemote_f();
+
+            if (not localScanThreadExists_pri)
             {
-                localScanThreadExists_pri = false;
-                //QOUT_TS("localScanThreadExists_pri = false" << endl);
-            });
-            QObject::connect(localScanThreadTmp, &QThread::finished, localScanThreadTmp, &QThread::deleteLater);
-            localScanThreadTmp->start();
-            //QOUT_TS("operationsConfig_c::mainLoop() starting calculateNumberAsThread" << endl);
-            localScanThreadExists_pri = true;
+                threadedFunction_c* localScanThreadTmp = new threadedFunction_c(std::bind(&mirrorConfig_c::localScan_f, this), qtAppRef_ext);
+                QObject::connect(localScanThreadTmp, &QThread::destroyed, [this]
+                {
+                    localScanThreadExists_pri = false;
+                    //QOUT_TS("localScanThreadExists_pri = false" << endl);
+                });
+                QObject::connect(localScanThreadTmp, &QThread::finished, localScanThreadTmp, &QThread::deleteLater);
+                localScanThreadTmp->start();
+                //QOUT_TS("operationsConfig_c::mainLoop() starting calculateNumberAsThread" << endl);
+                localScanThreadExists_pri = true;
+            }
+        }
+        else
+        {
+            if (allRemotesTriedOnce_f())
+            {
+                //print files per mapping/server and then quit
+                printAllRemoteFileLists_f();
+                eines::signal::stopRunning_f();
+            }
         }
 
         checkRemoteFiles_f();
+    }
+    else
+    {
+        if (eines::signal::threadCount_f() > 1 or QThreadCount_f() > 0)
+        {
+//            QOUT_TS("qthreads counter " << QThreadCount_f() << endl);
+//            QOUT_TS("eines::signal::threadCount_f() " << eines::signal::threadCount_f() << endl);
+            //change the interval and wait another cycle
+            if (qtCycleRef_ext->interval() != 10)
+            {
+                qtCycleRef_ext->start(10);
+            }
+        }
+        else
+        {
+            QOUT_TS("qthreads counter " << QThreadCount_f() << endl);
+            QOUT_TS("eines::signal::threadCount_f() " << eines::signal::threadCount_f() << endl);
+            QOUT_TS("QCoreApplication::exit();"<< endl);
+            QCoreApplication::exit();
+        }
     }
 
     //QOUT_TS("mirrorConfig_c::mainLoop() end" << endl);
 }
 
 mirrorConfig_c mirrorConfig_ext;
+
+fileStatusArrayPlusHostInfo_s::fileStatusArrayPlusHostInfo_s(
+        const std::unordered_map<std::string, fileStatus_s> &fileStatusUMAP_par_con,
+        const QString &hostStr_par_con
+        , const quint16 port_par_con)
+    :
+    fileStatusArray_s(fileStatusUMAP_par_con)
+    ,  hostStr_pub(hostStr_par_con)
+  , port_pub(port_par_con)
+{}
+
+void fileStatusArrayPlusHostInfo_s::read_f(const QJsonObject &json)
+{
+    fileStatusArray_s::read_f(json);
+    port_pub = json["port"].toInt();
+    hostStr_pub = json["host"].toString();
+}
+
+void fileStatusArrayPlusHostInfo_s::write_f(QJsonObject &json) const
+{
+    fileStatusArray_s::write_f(json);
+    json["port"] = port_pub;
+    json["host"] = hostStr_pub;
+}
+

@@ -35,23 +35,23 @@ int main(int argc, char *argv[])
 {
     MACRO_signalHandler
 
-    //"idle-waiting" thread to tell qt event loop to quit when a signal happens
-    eines::signal::launchThread_f([]()
-    {
-        while (eines::signal::isRunning_f())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-#ifdef DEBUGJOUVEN
-            //std::cout << "qthreads counter " << QThreadCount_f() << std::endl;
-#endif
-        }
-        //quit qt the last thing, this includes this thread and "thread for the qt stuff"
-        while (eines::signal::threadCount_f() > 2 or QThreadCount_f() > 0)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-        QCoreApplication::exit();
-    });
+//    //"idle-waiting" thread to tell qt event loop to quit when a signal happens
+//    eines::signal::launchThread_f([]()
+//    {
+//        while (eines::signal::isRunning_f())
+//        {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+//#ifdef DEBUGJOUVEN
+//            //std::cout << "qthreads counter " << QThreadCount_f() << std::endl;
+//#endif
+//        }
+//        //quit qt the last thing, this includes this thread and "thread for the qt stuff"
+//        while (eines::signal::threadCount_f() > 2 or QThreadCount_f() > 0)
+//        {
+//            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+//        }
+//        QCoreApplication::exit();
+//    });
 
     //thread for the main program qt stuff
     eines::signal::launchThread_f([&]()

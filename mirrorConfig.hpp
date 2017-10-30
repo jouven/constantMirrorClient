@@ -16,7 +16,23 @@
 #include <chrono>
 #include <vector>
 #include <unordered_map>
-#include <unordered_set>
+//#include <unordered_set>
+
+struct fileStatusArrayPlusHostInfo_s : public fileStatusArray_s
+{
+    QString hostStr_pub;
+    quint16 port_pub = 0;
+public:
+    fileStatusArrayPlusHostInfo_s
+    (
+            const std::unordered_map<std::string, fileStatus_s>& fileStatusUMAP_par_con
+            , const QString& hostStr_par_con
+            , const quint16 port_par_con
+    );
+
+    void read_f(const QJsonObject &json);
+    void write_f(QJsonObject &json) const;
+};
 
 struct downloadInfo_s
 {
@@ -88,17 +104,13 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
     uint_fast64_t localHash_pri = 0;
     uint_fast64_t localLastModificationTime_pri = 0;
 
-//    //remote
-//    uint_fast64_t remoteHash_pub_pri = 0;
-//    uint_fast64_t remoteLastModificationTime_pri = 0;
-
-
     //when dealing with directory mapping
     //key = localPath
     std::unordered_map<std::string, fileStatus_s> localFileStatusUMAP_pri;
     //key = "sourcePath"
     std::unordered_map<std::string, fileStatus_s> remoteFileStatusUMAP_pri;
 
+    //saves wich remote directories hold file X when includeDirectoriesWithFileX_pri is not empty
     QSet<QString> directoryContainsFileX_pri;
 
     //this might fail i hope QString can be used here
@@ -129,6 +141,8 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
     //variable to track is the paths consist of just a single file or a folder (the files in the folder)
     bool isSingleFile_pri = false;
     bool isSingleFileSet_pri = false;
+
+    bool remoteTriedOnce_pri = false;
 public:
     mirrorConfigSourceDestinationMapping_c();
 
@@ -156,19 +170,28 @@ public:
     void download_f();
 
     QHostAddress sourceAddress_f() const;
+    bool remoteTriedOnce_f() const;
+    void printRemoteFileList_f() const;
 };
 
 class mirrorConfig_c : public eines::baseClassQt_c
 {
+    //serialized/deserialized fields BEGIN
+
     //TODO, AFTER IT WORKS, make them optional and just use the defaults, printing, after, what the defaults are after the server/s is up
     //ip-dns interface to use (always mandatory)
     QString selfServerAddressStr_pri;
-    QHostAddress selfServerAddress_pri;
 
     //update server port (mandatory for destinations)
     quint16 updateServerPort_pri = 0;
 
     std::vector<mirrorConfigSourceDestinationMapping_c> sourceDestinationMappings_pri;
+
+    bool tryPrintRemoteFileListOnceAndQuit_pri = false;
+
+    //serialized/deserialized fields END
+
+    QHostAddress selfServerAddress_pri;
 
     bool localScanThreadExists_pri = false;
 
@@ -178,12 +201,15 @@ class mirrorConfig_c : public eines::baseClassQt_c
 
     //holds the result of checkValid_f
     bool valid_pri = false;
+
+    bool allRemotesTriedOnce_f() const;
+    void printAllRemoteFileLists_f() const;
 public:
     void read_f(const QJsonObject &json);
     void write_f(QJsonObject &json) const;
     quint16 updateServerPort_f() const;
     uint_fast32_t maxDownloadCountGlobal_f() const;
-    std::vector<mirrorConfigSourceDestinationMapping_c> sourceDestinationMappings_f() const;
+    //std::vector<mirrorConfigSourceDestinationMapping_c> sourceDestinationMappings_f() const;
     void checkValid_f();
 
     void initialSetup_f();
