@@ -58,6 +58,7 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
 
     //the remote "local path"
     //when using single file source/destination, the sourcePath must match exactly an item of the source list server (absolute file path)
+    QString originalSourcePath_pri;
     QString sourcePath_pri;
     //the ip/dns to which to connect string
     QString sourceAddressStr_pri;
@@ -69,6 +70,7 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
     //the download server port to connect
     quint16 sourceDownloadPort_pri = 0;
     //the local path
+    QString originalDestinationPath_pri;
     QString destinationPath_pri;
     //get filtered files, ignore those which do not match
     QStringList filenameFilters_pri;
@@ -144,7 +146,6 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
 
     bool remoteTriedOnce_pri = false;
 
-    QChar guessedSeparator_pri = '\0';
 public:
     mirrorConfigSourceDestinationMapping_c();
 

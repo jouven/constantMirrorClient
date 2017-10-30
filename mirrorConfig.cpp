@@ -121,11 +121,13 @@ mirrorConfigSourceDestinationMapping_c::mirrorConfigSourceDestinationMapping_c()
 
 void mirrorConfigSourceDestinationMapping_c::read_f(const QJsonObject &json)
 {
-    sourcePath_pri = json["sourcePath"].toString();
+    originalSourcePath_pri = json["sourcePath"].toString();
+    sourcePath_pri = QDir::fromNativeSeparators(originalSourcePath_pri);
     sourceAddressStr_pri = json["sourceAddress"].toString();
     sourceRequestPort_pri = json["sourceRequestPort"].toInt();
     sourceDownloadPort_pri = json["sourceDownloadPort"].toInt();
-    destinationPath_pri = json["destinationPath"].toString();
+    originalDestinationPath_pri = json["destinationPath"].toString();
+    destinationPath_pri = QDir::fromNativeSeparators(originalDestinationPath_pri);
     QJsonArray jsonArrayFilenameFilters_pubTmp(json["filenameFilters"].toArray());
     if (not jsonArrayFilenameFilters_pubTmp.isEmpty())
     {
@@ -572,7 +574,7 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
 
                         int_fast32_t sourceSubstringIndex(0);
 
-                        if (sourcePath_pri.endsWith(guessedSeparator_pri))
+                        if (sourcePath_pri.endsWith('/'))
                         {
                             sourceSubstringIndex = remoteItem_ite.second.filename_pub.size() - sourcePath_pri.size();
                         }
@@ -587,18 +589,16 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
                         }
                         else
                         {
-                            //here destination relative path is built using a remote path which can be windows or *nix type
-                            //so QDir::toNativeSeparators
-                            destinationRelativePath = QDir::toNativeSeparators(remoteItem_ite.second.filename_pub.right(sourceSubstringIndex));
+                            destinationRelativePath = remoteItem_ite.second.filename_pub.right(sourceSubstringIndex);
                         }
 
-                        if (destinationPath_pri.endsWith(QDir::separator()))
+                        if (destinationPath_pri.endsWith('/'))
                         {
                             finalDestinationTmp = destinationPath_pri + destinationRelativePath;
                         }
                         else
                         {
-                            finalDestinationTmp = destinationPath_pri + QDir::separator() + destinationRelativePath;
+                            finalDestinationTmp = destinationPath_pri + '/' + destinationRelativePath;
                         }
 #ifdef DEBUGJOUVEN
                         //QOUT_TS("(mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f) finalDestinationTmp " << finalDestinationTmp << endl);
@@ -668,8 +668,6 @@ void mirrorConfigSourceDestinationMapping_c::download_f()
         return;
     }
 
-    //posar locker
-    //QMutexLocker lockerATmp(getAddMutex_f(QString::number(id_pri).toStdString() + "download"));
     while (
            eines::signal::isRunning_f()
            and currentDownloadCount_pri < maxDownloadCount_pri
@@ -683,7 +681,6 @@ void mirrorConfigSourceDestinationMapping_c::download_f()
         downloadClient_c* downloadClientObj = new downloadClient_c(sourceAddress_pri, sourceDownloadPort_pri, frontItem.source_pub, frontItem.destination_pub, qtAppRef_ext);
         QObject::connect(downloadClientObj, &QTcpSocket::disconnected, [this]
         {
-            //QMutexLocker lockerTmp(getAddMutex_f(QString::number(id_pri).toStdString() + "download"));
             currentDownloadCount_pri = currentDownloadCount_pri - 1;
         });
         QObject::connect(downloadClientObj, &QTcpSocket::disconnected, downloadClientObj, &QObject::deleteLater);
@@ -741,37 +738,13 @@ void mirrorConfigSourceDestinationMapping_c::checkValid_f()
 
     if (not sourcePath_pri.isEmpty())
     {
-        //not very portable? but let's assume
-        //source paths starting with '/' use '/' as directory separator
-        //else '\\'
-        //client OS is known but server must be "guessed"
-        QChar sourceFirstChar(sourcePath_pri.at(0));
-        if (sourceFirstChar == '/')
+        if (destinationPath_pri.endsWith('/') and not sourcePath_pri.endsWith('/'))
         {
-            guessedSeparator_pri = '/';
+            sourcePath_pri.append('/');
         }
-        else
+        if (not destinationPath_pri.endsWith('/') and sourcePath_pri.endsWith('/'))
         {
-            //this (and sourceFirstChar == '/') forces abosulute path in source and destination
-            if (sourceFirstChar == '\\')
-            {
-                guessedSeparator_pri = '\\';
-            }
-            else
-            {
-                appendError_f("Failed to guess server's directory separator, source paths must start with / or \\");
-                isValidTmp = false;
-            }
-        }
-        QChar sourceLastChar(sourcePath_pri.right(1).at(0));
-        if (destinationPath_pri.endsWith(QDir::separator()) and (sourceLastChar != guessedSeparator_pri))
-        {
-            sourcePath_pri.append(guessedSeparator_pri);
-        }
-
-        if (not destinationPath_pri.endsWith(QDir::separator()) and sourceLastChar == guessedSeparator_pri)
-        {
-            destinationPath_pri.append(QDir::separator());
+            destinationPath_pri.append('/');
         }
     }
 
@@ -1003,7 +976,7 @@ void mirrorConfig_c::initialSetup_f()
 
         if (configFilePathStr.isEmpty())
         {
-            configFilePathStr = QCoreApplication::applicationDirPath() + QDir::separator() + "config.json";
+            configFilePathStr = QCoreApplication::applicationDirPath() + "/config.json";
         }
         //qout_glo << "configFilePathStr " << configFilePathStr << endl;
         QFile configFile(configFilePathStr);
@@ -1219,8 +1192,7 @@ void mirrorConfig_c::mainLoop_f()
     {
         if (not tryPrintRemoteFileListOnceAndQuit_pri)
         {
-            //not threaded, but, IT NEEDS A TEST, several download objects are created to download more than one file at time
-            //IT DOESN'T CREATE ANY THREADS THOUGH
+            //not threaded
             downloadFiles_f();
 
             //threaded
@@ -1250,6 +1222,7 @@ void mirrorConfig_c::mainLoop_f()
             }
         }
 
+        //threaded
         checkRemoteFiles_f();
     }
     else
