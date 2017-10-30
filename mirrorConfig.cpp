@@ -739,11 +739,23 @@ void mirrorConfigSourceDestinationMapping_c::checkValid_f()
         }
     }
 
-    if (destinationPath_pri.endsWith(QDir::separator()) and not sourcePath_pri.endsWith(QDir::separator()))
+    //not very portable? but let's assume
+    //source paths starting with '/' use '/' as directory separator
+    //else '\\'
+    //client OS is known but server must be "guessed"
+    QChar sourceLastChar(sourcePath_pri.right(1).at(0));
+    if (destinationPath_pri.endsWith(QDir::separator()) and (sourceLastChar != '/' and sourceLastChar != '\\'))
     {
-        sourcePath_pri.append(QDir::separator());
+        if (sourcePath_pri.at(0) == '/')
+        {
+            sourcePath_pri.append("/");
+        }
+        else
+        {
+            sourcePath_pri.append("\\");
+        }
     }
-    if (not destinationPath_pri.endsWith(QDir::separator()) and sourcePath_pri.endsWith(QDir::separator()))
+    if (not destinationPath_pri.endsWith(QDir::separator()) and (sourceLastChar == '/' or sourceLastChar == '\\'))
     {
         destinationPath_pri.append(QDir::separator());
     }
