@@ -47,7 +47,7 @@ win32:MYPATH = "H:/veryuseddata/portable/msys64/"
 #mine
 INCLUDEPATH += $${MYPATH}home/jouven/mylibs/include
 
-LIBS += -lsignalso -lcriptoso -lfileHashQtso -lbaseClassQtso -lessentialQtso -lthreadedFunctionQtso -lqmutexUMapQtso -lsslUtilsso -lssl -lcrypto
+LIBS += -lsignalso -lfileHashQtso -lbaseClassQtso -lessentialQtso -lthreadedFunctionQtso -lqmutexUMapQtso -lsslUtilsso -lssl -lcrypto
 
 #don't new line the "{"
 #release
