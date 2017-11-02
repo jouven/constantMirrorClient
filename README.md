@@ -7,7 +7,7 @@ Requires:
 
 Qt library
 
-https://github.com/jouven/criptoso
+https://github.com/jouven/criptoQtso
 
 https://github.com/jouven/signalso
 
