@@ -12,21 +12,12 @@
 
 downloadClient_c::downloadClient_c(const QHostAddress& address_par_con
         , const quint16 port_par_con
-        , const QString& sourceFileFullPath_par_con
-        , const QString &destinationFileFullPath_par_con
-        , QObject *parent)
+        , const downloadInfo_s &downloadInfo_par_con
+        , const bool deleteThenCopy_par_con, QObject *parent)
     : QSslSocket(parent)
-    , sourceFileFullPath_pri(sourceFileFullPath_par_con)
-    , destinationFileFullPath_pri(destinationFileFullPath_par_con)
+    , downloadInfo_pri(downloadInfo_par_con)
+    , deleteThenCopy_pri(deleteThenCopy_par_con)
 {
-    //this->setSslConfiguration(QSslConfiguration::defaultConfiguration());
-    //this->setPeerVerifyMode(QSslSocket::VerifyNone);
-    //this->setProtocol(QSsl::TlsV1_2);
-
-    if (destinationFileFullPath_pri.isEmpty())
-    {
-        destinationFileFullPath_pri = sourceFileFullPath_pri;
-    }
     connect(this, &QSslSocket::encrypted, this, &downloadClient_c::successfulConnection_f);
     connect(this, &QTcpSocket::readyRead, this, &downloadClient_c::newRead_f);
     connect(this, &QTcpSocket::disconnected, this, &downloadClient_c::finishFile_f);
@@ -40,7 +31,7 @@ downloadClient_c::downloadClient_c(const QHostAddress& address_par_con
         if (this->error() != QAbstractSocket::RemoteHostClosedError)
         {
 #ifdef DEBUGJOUVEN
-            QOUT_TS("(downloadClient_c::ctor() error) his->deleteLater()" << endl);
+            //QOUT_TS("(downloadClient_c::ctor() error) his->deleteLater()" << endl);
 #endif
             this->deleteLater();
         }
@@ -61,7 +52,7 @@ downloadClient_c::downloadClient_c(const QHostAddress& address_par_con
 void downloadClient_c::successfulConnection_f()
 {
 #ifdef DEBUGJOUVEN
-    QOUT_TS("(downloadClient_c::successfulConnection_f) client connected" << endl);
+    //QOUT_TS("(downloadClient_c::successfulConnection_f) client connected" << endl);
 #endif
 
 #ifdef DEBUGJOUVEN
@@ -70,21 +61,38 @@ void downloadClient_c::successfulConnection_f()
     //qDebug() << "this->peerPort()" << this->peerPort() << endl;
 #endif
     //check how is the file locally and send a request with the filename fullpath
-    if (not sourceFileFullPath_pri.isEmpty())
+    if (not downloadInfo_pri.source_pub.isEmpty())
     {
-        QFileInfo destinationFileInfoTmp(destinationFileFullPath_pri);
+        QFileInfo destinationFileInfoTmp(downloadInfo_pri.destination_pub);
         if (destinationFileInfoTmp.exists() and destinationFileInfoTmp.isFile())
         {
-            //TODO futur posar es tema de renombrar primer o despues
-            if (QFile::rename(destinationFileInfoTmp.absoluteFilePath(), destinationFileInfoTmp.absoluteFilePath() + ".old"))
+            if (deleteThenCopy_pri)
             {
-                //rename successful
+                if (QFile::remove(destinationFileInfoTmp.absoluteFilePath()))
+                {
+                    //remove successful
+                }
+                else
+                {
+                    QOUT_TS("Failed to remove local file " << destinationFileInfoTmp.absoluteFilePath() << " before downloading it from server" << endl);
+                    this->disconnectFromHost();
+                    return;
+                }
             }
             else
             {
-#ifdef DEBUGJOUVEN
-                QOUT_TS("(downloadClient_c::successfulConnection_f) failed to rename " << destinationFileInfoTmp.absoluteFilePath() << endl);
-#endif
+                if (QFile::rename(destinationFileInfoTmp.absoluteFilePath(), destinationFileInfoTmp.absoluteFilePath() + ".old"))
+                {
+                    //rename successful
+                }
+                else
+                {
+                    //#ifdef DEBUGJOUVEN
+                    QOUT_TS("Failed to rename local file " << destinationFileInfoTmp.absoluteFilePath() << " before downloading it from server" << endl);
+                    this->disconnectFromHost();
+                    return;
+                    //#endif
+                }
             }
         }
         else
@@ -93,9 +101,9 @@ void downloadClient_c::successfulConnection_f()
         {
             if (destinationFileInfoTmp.isDir())
             {
-#ifdef DEBUGJOUVEN
-                QOUT_TS("(downloadClient_c::successfulConnection_f) destination is folder " << destinationFileInfoTmp.absoluteFilePath() << endl);
-#endif
+//#ifdef DEBUGJOUVEN
+                QOUT_TS("Download error, destination is folder " << destinationFileInfoTmp.absoluteFilePath() << endl);
+//#endif
                 this->disconnectFromHost();
                 return;
             }
@@ -109,9 +117,11 @@ void downloadClient_c::successfulConnection_f()
                 }
                 else
                 {
-#ifdef DEBUGJOUVEN
-                    QOUT_TS("(downloadClient_c::successfulConnection_f) failed to create parent Path " << destinationParentTmp.absolutePath() << endl);
-#endif
+//#ifdef DEBUGJOUVEN
+                    QOUT_TS("Download error, failed to create parent Path " << destinationParentTmp.absolutePath() << endl);
+                    this->disconnectFromHost();
+                    return;
+//#endif
                 }
             }
             else
@@ -126,61 +136,89 @@ void downloadClient_c::successfulConnection_f()
         {
             QByteArray byteArrayTmp;
 #ifdef DEBUGJOUVEN
-QOUT_TS("(downloadClient_c::successfulConnection_f) sourceFileFullPath_pri " << sourceFileFullPath_pri << endl);
+            //QOUT_TS("(downloadClient_c::successfulConnection_f) sourceFileFullPath_pri " << sourceFileFullPath_pri << endl);
 #endif
-            byteArrayTmp.append(sourceFileFullPath_pri);
+            byteArrayTmp.append(downloadInfo_pri.source_pub);
             this->write(byteArrayTmp.data(), byteArrayTmp.size());
-            //this flush is alright because else the client might wait to send more stuff when what's required
-            //is the server to have the sourceFile so it can start sending it
+            //this flush is alright because else the client might wait before sending more stuff when what's required
+            //is for the server to receive the sourceFile so it can start sending it to the client
             if (this->flush())
             {
 #ifdef DEBUGJOUVEN
-                QOUT_TS("(downloadClient_c::successfulConnection_f) write flush true" << endl);
+                //QOUT_TS("(downloadClient_c::successfulConnection_f) write flush true" << endl);
 #endif
             }
             else
             {
 #ifdef DEBUGJOUVEN
-                QOUT_TS("(downloadClient_c::successfulConnection_f) write flush false" << endl);
+                //QOUT_TS("(downloadClient_c::successfulConnection_f) write flush false" << endl);
 #endif
             }
         }
         else
         {
-#ifdef DEBUGJOUVEN
-            QOUT_TS("(downloadClient_c::successfulConnection_f) failed to open/create " << file_pri.fileName() << endl);
-#endif
+//#ifdef DEBUGJOUVEN
+            QOUT_TS("Download error, failed to open/create " << destinationFileInfoTmp.absoluteFilePath() << endl);
+            this->disconnectFromHost();
+//#endif
         }
     }
     else
     {
-#ifdef DEBUGJOUVEN
-        QOUT_TS("(downloadClient_c::successfulConnection_f) source file name is empty" << endl);
-#endif
+//#ifdef DEBUGJOUVEN
+        QOUT_TS("Download error, source/remote file name is empty" << endl);
+        this->disconnectFromHost();
+//#endif
     }
 }
 
 void downloadClient_c::newRead_f()
 {
 #ifdef DEBUGJOUVEN
-    QOUT_TS("(downloadClient_c::newRead_f) socket newRead" << endl);
+    //QOUT_TS("(downloadClient_c::newRead_f) socket newRead" << endl);
 #endif
     if (firstRead_pri)
     {
         firstRead_pri = false;
         QByteArray arrayOfOneTmp(this->read(1));
-        if (arrayOfOneTmp.at(0) != '0')
+        char firstChar(arrayOfOneTmp.at(0));
+        if (firstChar != '0')
         {
+            bool isknownErrorTmp(false);
+            if (firstChar == '1')
+            {
+                isknownErrorTmp = true;
+                QOUT_TS("Download file not found in the server " << downloadInfo_pri.source_pub << endl);
+            }
+            if (firstChar == '2')
+            {
+                isknownErrorTmp = true;
+                QOUT_TS("Download file not found in the server (it existed previously) " << downloadInfo_pri.source_pub << endl);
+            }
+            if (firstChar == '3')
+            {
+                isknownErrorTmp = true;
+                QOUT_TS("File reading error in the server " << downloadInfo_pri.source_pub << endl);
+            }
+
+            if (not isknownErrorTmp)
+            {
+                QOUT_TS("Download error, unknown error, first byte value " << firstChar << endl);
+            }
 #ifdef DEBUGJOUVEN
-            QOUT_TS("(downloadClient_c::newRead_f()) firstChar " << arrayOfOneTmp << endl);
+            //QOUT_TS("(downloadClient_c::newRead_f()) firstChar " << arrayOfOneTmp << endl);
 #endif
             this->disconnectFromHost();
+        }
+        else
+        {
+            //success
         }
     }
 
     auto writeSize(file_pri.write(this->readAll()));
 #ifdef DEBUGJOUVEN
-    QOUT_TS("(downloadClient_c::newRead_f()) this->readAll() writeSize " << writeSize << endl);
+    //QOUT_TS("(downloadClient_c::newRead_f()) this->readAll() writeSize " << writeSize << endl);
 #endif
 
 }
@@ -188,25 +226,40 @@ void downloadClient_c::newRead_f()
 void downloadClient_c::finishFile_f()
 {
 #ifdef DEBUGJOUVEN
-    QOUT_TS("(downloadClient_c::finishFile_f) " << endl);
+    //QOUT_TS("(downloadClient_c::finishFile_f) " << endl);
 #endif
-    //close the downloaded file
-    file_pri.close();
-    //TODO futur posar es tema de renombrar primer o despues
-    //remove the old file
-    QFileInfo destinationFileInfoTmp(destinationFileFullPath_pri + ".old");
-    if (destinationFileInfoTmp.exists())
+    if (file_pri.size() == downloadInfo_pri.size_pub)
     {
-        if (QFile::remove(destinationFileFullPath_pri + ".old"))
+        if (not deleteThenCopy_pri)
         {
-
+            //remove the old file
+            QFileInfo destinationFileInfoTmp(downloadInfo_pri.destination_pub + ".old");
+            if (destinationFileInfoTmp.exists())
+            {
+                if (QFile::remove(downloadInfo_pri.destination_pub + ".old"))
+                {
+                    //remove success
+                }
+                else
+                {
+                    //#ifdef DEBUGJOUVEN
+                    QOUT_TS("Download error, failed to remove " << downloadInfo_pri.destination_pub + ".old after download" << endl);
+                    //#endif
+                }
+            }
+            else
+            {
+                //should this be an error? going to delete the file but it is not there...
+            }
         }
         else
         {
-#ifdef DEBUGJOUVEN
-            QOUT_TS("(downloadClient_c::finishFile_f) failed to remove " << destinationFileFullPath_pri + ".old" << endl);
-#endif
+            //it was deleted before, so nothing to do here
         }
+    }
+    else
+    {
+        QOUT_TS("Download error, file size (file list request) " << downloadInfo_pri.size_pub << " downloaded file size " << file_pri.size() << endl);
     }
 }
 

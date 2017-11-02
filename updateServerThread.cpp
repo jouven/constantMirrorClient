@@ -15,11 +15,8 @@ updateServerThread_c::updateServerThread_c(const qintptr socketDescriptor_par_co
 
 void updateServerThread_c::run()
 {
-    //with a local event loop, once it goes out of scope the eventloop object dtors kicks in,
-    //so if it has children it will destroy them too, no need to connect signal of deleteLater
-    //QEventLoop threadEventLoopTmp;
 #ifdef DEBUGJOUVEN
-    QOUT_TS("updateServerThread_c::run()" << endl);
+    //QOUT_TS("updateServerThread_c::run()" << endl);
 #endif
     updateServerSocket_c* updateServerSocketTmp = new updateServerSocket_c(socketDescriptor_pri);
     connect(updateServerSocketTmp, &QTcpSocket::disconnected, [this, updateServerSocketTmp]()
@@ -30,25 +27,25 @@ void updateServerThread_c::run()
         }
         else
         {
-#ifdef DEBUGJOUVEN
-            QOUT_TS("updateServerThread_c::run() updateServerSocketTmp->destinationByteArray_f().isEmpty()" << endl);
-#endif
+//#ifdef DEBUGJOUVEN
+            QOUT_TS("Update server, client didn't send any data, which server updated can't be determined" << endl);
+//#endif
         }
+        //this one should be impossible to else but who knows
         if (not updateServerSocketTmp->peerAddress_f().isNull())
         {
             peerAddress_pri = updateServerSocketTmp->peerAddress_f();
         }
         else
         {
-#ifdef DEBUGJOUVEN
-            QOUT_TS("updateServerThread_c::run() updateServerSocketTmp->peerAddress_f().isNull()" << endl);
-#endif
+//#ifdef DEBUGJOUVEN
+            QOUT_TS("Update server, client address is null, which server updated can't be determined" << endl);
+//#endif
         }
     });
 
     connect(updateServerSocketTmp, &QTcpSocket::destroyed, this, &QThread::quit);
 
-    //threadEventLoopTmp.exec();
     exec();
 }
 

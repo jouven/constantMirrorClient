@@ -5,13 +5,10 @@
 #include "baseClassQtso/baseClassQt.hpp"
 #include "fileHashQtso/fileHashQt.hpp"
 
-#include <QJsonArray>
-#include <QJsonDocument>
 #include <QJsonObject>
 #include <QStringList>
 #include <QHostAddress>
 //#include <QHash>
-#include <QSet>
 
 #include <chrono>
 #include <vector>
@@ -22,9 +19,7 @@ struct fileStatusArrayPlusHostInfo_s : public fileStatusArray_s
 {
     QString hostStr_pub;
     quint16 port_pub = 0;
-public:
-    fileStatusArrayPlusHostInfo_s
-    (
+    fileStatusArrayPlusHostInfo_s(
             const std::unordered_map<std::string, fileStatus_s>& fileStatusUMAP_par_con
             , const QString& hostStr_par_con
             , const quint16 port_par_con
@@ -38,7 +33,6 @@ struct downloadInfo_s
 {
     QString source_pub;
     QString destination_pub;
-    //This is not used yet, TODO decide if will be used
     uint_fast64_t size_pub = 0;
     downloadInfo_s(
             const QString& source_par_con
@@ -88,7 +82,9 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
     //mandatory
     qint64 remoteCheckIntervalMilliseconds_pri = 5000;
 
-    //TODO implementar
+    //mirror remote deletions locally, this only happens when client and server are running (fine)
+    //and on the server side a file is removed that was being listed/shared and it doesn't appear on the list anymore
+    //this can happen to if the server goes offline and then back online and the list has changed
     bool syncDeletions_pri = true;
     //otherwise rename first, copies and if successful then deletes the renamed
     bool deleteThenCopy_pri = false;
@@ -112,9 +108,6 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
     //key = "sourcePath"
     std::unordered_map<std::string, fileStatus_s> remoteFileStatusUMAP_pri;
 
-    //saves wich remote directories hold file X when includeDirectoriesWithFileX_pri is not empty
-    QSet<QString> directoryContainsFileX_pri;
-
     //this might fail i hope QString can be used here
     std::vector<downloadInfo_s> filesToDownload_pri;
     int_fast32_t currentDownloadCount_pri = 0;
@@ -132,9 +125,8 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
     bool compareLocalAndRemoteThreadExists_pri = false;
 
     bool compareRequired_pri = false;
-    //bool downloadRequired_pri = false;
 
-    //temp variable to read the json, since I'm not sure it will be read all at once
+    //temp variable to read the file list request json
     QByteArray destinationJSONByteArray_pri;
 
     //result of isValid_f
@@ -179,9 +171,10 @@ public:
 
 class mirrorConfig_c : public eines::baseClassQt_c
 {
+    //TODO, AFTER IT WORKS, make them optional and just use the defaults, printing, after, what the defaults are after the server/s is up
+
     //serialized/deserialized fields BEGIN
 
-    //TODO, AFTER IT WORKS, make them optional and just use the defaults, printing, after, what the defaults are after the server/s is up
     //ip-dns interface to use (always mandatory)
     QString selfServerAddressStr_pri;
 

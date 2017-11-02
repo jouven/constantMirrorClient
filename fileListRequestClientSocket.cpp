@@ -14,7 +14,7 @@ fileListRequestClientSocket_c::fileListRequestClientSocket_c(const QHostAddress 
 {
     connect(this, &QSslSocket::encrypted, this, &fileListRequestClientSocket_c::connected_f);
     connect(this, &QTcpSocket::readyRead, this, &fileListRequestClientSocket_c::readyRead_f);
-    connect(this, &QTcpSocket::disconnected, this, &fileListRequestClientSocket_c::disconnected_f);
+    connect(this, &QTcpSocket::disconnected, this, &fileListRequestClientSocket_c::deleteLater);
     connect(this, static_cast<void(QAbstractSocket::*)(QAbstractSocket::SocketError)>(&QAbstractSocket::error),
     [=](QAbstractSocket::SocketError socketError)
     {
@@ -26,7 +26,7 @@ fileListRequestClientSocket_c::fileListRequestClientSocket_c(const QHostAddress 
         if (this->error() != QAbstractSocket::RemoteHostClosedError)
         {
 #ifdef DEBUGJOUVEN
-            QOUT_TS("(fileListRequestClientSocket_c::ctor() error) this->deleteLater()" << endl);
+            //QOUT_TS("(fileListRequestClientSocket_c::ctor() error) this->deleteLater()" << endl);
 #endif
             this->deleteLater();
         }
@@ -42,8 +42,8 @@ fileListRequestClientSocket_c::fileListRequestClientSocket_c(const QHostAddress 
         //this->deleteLater();
     });
 #ifdef DEBUGJOUVEN
-    QOUT_TS("(fileListRequestClientSocket_c::fileListRequestClientSocket_c) address_par_con.toString() " << address_par_con.toString() << endl);
-    QOUT_TS("(fileListRequestClientSocket_c::fileListRequestClientSocket_c) port_par_con " << port_par_con << endl);
+    //QOUT_TS("(fileListRequestClientSocket_c::fileListRequestClientSocket_c) address_par_con.toString() " << address_par_con.toString() << endl);
+    //QOUT_TS("(fileListRequestClientSocket_c::fileListRequestClientSocket_c) port_par_con " << port_par_con << endl);
 #endif
     this->connectToHostEncrypted(address_par_con.toString(), port_par_con);
 }
@@ -53,10 +53,10 @@ void fileListRequestClientSocket_c::connected_f()
     QByteArray byteArrayTmp;
     byteArrayTmp.append(QString::number(mirrorConfig_ext.updateServerPort_f()));
     this->write(byteArrayTmp.data(), byteArrayTmp.size());
-    //valid flush because the server is the one governing the connection
+    //valid flush because the server is waiting for the port first
     this->flush();
 #ifdef DEBUGJOUVEN
-    QOUT_TS("fileListRequestClientSocket_c::connected_f() mirrorConfig_ext.updateServerPort_f() " << mirrorConfig_ext.updateServerPort_f() << endl);
+    //QOUT_TS("fileListRequestClientSocket_c::connected_f() mirrorConfig_ext.updateServerPort_f() " << mirrorConfig_ext.updateServerPort_f() << endl);
 #endif
 }
 
@@ -68,11 +68,11 @@ void fileListRequestClientSocket_c::readyRead_f()
     destinationByteArrayRef_pri->append(this->readAll());
 }
 
-void fileListRequestClientSocket_c::disconnected_f()
-{
-#ifdef DEBUGJOUVEN
-    QOUT_TS("(fileListRequestClientSocket_c::disconnected_f()) " << endl);
-#endif
-    this->deleteLater();
-}
+//void fileListRequestClientSocket_c::disconnected_f()
+//{
+//#ifdef DEBUGJOUVEN
+//    //QOUT_TS("(fileListRequestClientSocket_c::disconnected_f()) " << endl);
+//#endif
+//    this->deleteLater();
+//}
 

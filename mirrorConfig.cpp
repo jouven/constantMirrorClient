@@ -23,6 +23,9 @@
 #include <QRegExp>
 #include <QSslConfiguration>
 #include <QSslKey>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QSet>
 
 #include <boost/math/common_factor.hpp>
 
@@ -101,7 +104,6 @@ bool mirrorConfigSourceDestinationMapping_c::remoteTriedOnce_f() const
 
 void mirrorConfigSourceDestinationMapping_c::printRemoteFileList_f() const
 {
-
     if (initialRemoteScanSet_pri)
     {
         fileStatusArrayPlusHostInfo_s objToSerialize(remoteFileStatusUMAP_pri, sourceAddressStr_pri, sourceRequestPort_pri);
@@ -127,7 +129,14 @@ void mirrorConfigSourceDestinationMapping_c::read_f(const QJsonObject &json)
     sourceRequestPort_pri = json["sourceRequestPort"].toInt();
     sourceDownloadPort_pri = json["sourceDownloadPort"].toInt();
     originalDestinationPath_pri = json["destinationPath"].toString();
-    destinationPath_pri = QDir::fromNativeSeparators(originalDestinationPath_pri);
+    if (originalDestinationPath_pri.isEmpty())
+    {
+        destinationPath_pri = sourcePath_pri;
+    }
+    else
+    {
+        destinationPath_pri = QDir::fromNativeSeparators(originalDestinationPath_pri);
+    }
     QJsonArray jsonArrayFilenameFilters_pubTmp(json["filenameFilters"].toArray());
     if (not jsonArrayFilenameFilters_pubTmp.isEmpty())
     {
@@ -223,14 +232,21 @@ void mirrorConfigSourceDestinationMapping_c::localScan_f()
                 }
             }
 
-            //case directory (0 or many files)
+            //case directory (0 or more files)
             if (destinationTmp.isDir())
             {
+                bool includeSubdirectoriesTmp(includeSubdirectories_pri);
+                //because all the files are placed in the destination root directory
+                //so locally it's the same effect as includeSubdirectories_pri = false
+                if (noSubdirectoriesInDestination_pri)
+                {
+                    includeSubdirectoriesTmp = false;
+                }
                 anyFileChangedTmp = hashDirectoryInUMAP_f(
                             localFileStatusUMAP_pri
                             , destinationTmp
                             , filenameFilters_pri
-                            , includeSubdirectories_pri
+                            , includeSubdirectoriesTmp
                             , includeDirectoriesWithFileX_pri
                             );
             }
@@ -320,9 +336,9 @@ void mirrorConfigSourceDestinationMapping_c::checkRemoteFiles_f()
         destinationJSONByteArray_pri.clear();
         if (jsonDocumentTmp.isNull())
         {
-#ifdef DEBUGJOUVEN
-            QOUT_TS("(mirrorConfig_c::checkRemoteFiles_f()) jsonDocumentTmp.isNull()" << endl);
-#endif
+//#ifdef DEBUGJOUVEN
+            QOUT_TS("File list request error, empty json document" << endl);
+//#endif
         }
         else
         {
@@ -340,6 +356,7 @@ void mirrorConfigSourceDestinationMapping_c::checkRemoteFiles_f()
             {
                 //YES, EVERYTHING WILL GET DELETED, but that's how it works, it syncs the remote "empty" side
                 remoteUMAPChangedTmp = true;
+                //server returning an empty file list, not an error per se
 #ifdef DEBUGJOUVEN
                 QOUT_TS("(mirrorConfig_c::checkRemoteFiles_f()) fileStatusArrayTmp.fileStatusVector_pub.empty()" << endl);
 #endif
@@ -407,6 +424,13 @@ void mirrorConfigSourceDestinationMapping_c::checkRemoteFiles_f()
                         }
                     }
                 }
+                for (const auto& remoteItem_ite : remoteFileStatusUMAP_pri)
+                {
+                    if (not remoteItem_ite.second.iterated_pub)
+                    {
+                        remoteUMAPChangedTmp = true;
+                    }
+                }
             }
             //getAddMutex_f(QString::number(id_pri).toStdString() + "remote")->unlock();
             if (remoteUMAPChangedTmp)
@@ -415,7 +439,7 @@ void mirrorConfigSourceDestinationMapping_c::checkRemoteFiles_f()
             }
             else
             {
-            //it's set to false at the begining of requestFileList
+                //it's set to false at the begining of requestFileList
             }
             if (not initialRemoteScanSet_pri)
             {
@@ -475,19 +499,17 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
             }
         }
 
-        if (not includeDirectoriesWithFileX_pri.isEmpty())
+
+        //saves wich remote directories hold file X when includeDirectoriesWithFileX_pri is not empty
+        QSet<QString> directoryContainsFileX_pri;
+        for (auto& remoteItem_ite : remoteFileStatusUMAP_pri)
         {
-            directoryContainsFileX_pri.clear();
-            for (auto& remoteItem_ite : remoteFileStatusUMAP_pri)
+            QFileInfo fileTmp(remoteItem_ite.second.filename_pub);
+            if (fileTmp.fileName() == includeDirectoriesWithFileX_pri)
             {
-                QFileInfo fileTmp(remoteItem_ite.second.filename_pub);
-                if (fileTmp.fileName() == includeDirectoriesWithFileX_pri)
-                {
-                    directoryContainsFileX_pri.insert(fileTmp.absolutePath());
-                }
+                directoryContainsFileX_pri.insert(fileTmp.absolutePath());
             }
         }
-
 
 //        }
         //this can happen is the server doesn't provide what the client is searching or
@@ -519,12 +541,19 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
                     }
                     else
                     {
-                        //remove local file on the spot
-                        if (not QFile::remove(destinationPath_pri))
+                        if (syncDeletions_pri)
                         {
-#ifdef DEBUGJOUVEN
-                            QOUT_TS("(mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f failed to remove " << destinationPath_pri << endl);
-#endif
+                            //remove local file on the spot
+                            if (not QFile::remove(destinationPath_pri))
+                            {
+                                //#ifdef DEBUGJOUVEN
+                                QOUT_TS("Failed to remove (was deleted on the remote side) file " << destinationPath_pri << endl);
+                                //#endif
+                            }
+                        }
+                        else
+                        {
+                            //skip the remove
                         }
                     }
                 }
@@ -543,7 +572,7 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
                 }
             }
             else
-            //folder
+            //directory
             {
                 for (auto& remoteItem_ite : remoteFileStatusUMAP_pri)
                 {
@@ -569,6 +598,21 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
                             //keep going
                         }
 
+                        if (not includeSubdirectories_pri)
+                        {
+                            QFileInfo fileInfoTmp(remoteItem_ite.second.filename_pub);
+                            QString fileInfoParentPathTmp(fileInfoTmp.absolutePath());
+                            if (fileInfoParentPathTmp == sourcePath_pri or (fileInfoParentPathTmp  + "/") == sourcePath_pri)
+                            {
+                                //keep going
+                            }
+                            else
+                            {
+                                //skip to next file
+                                continue;
+                            }
+                        }
+
                         QString finalDestinationTmp;
                         QString destinationRelativePath;
 
@@ -585,7 +629,9 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
 
                         if (noSubdirectoriesInDestination_pri)
                         {
-                            //do nothing, if relativePath is empty all goes to root
+                            //only use the filename
+                            QFileInfo fileInfoTmp(remoteItem_ite.second.filename_pub);
+                            destinationRelativePath = fileInfoTmp.fileName();
                         }
                         else
                         {
@@ -610,13 +656,19 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
                         {
                             if (not remoteItem_ite.second.iterated_pub)
                             {
-                                //not iterated (remote umap) and exists locally
-                                //remove on the spot
-                                if (not QFile::remove(finalDestinationTmp))
-                                {
 #ifdef DEBUGJOUVEN
-                                    QOUT_TS("(mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f failed to remove " << finalDestinationTmp << endl);
+                                //QOUT_TS("(mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f) not iterated " << finalDestinationTmp << endl);
 #endif
+                                if (syncDeletions_pri)
+                                {
+                                    //not iterated (remote umap) and exists locally
+                                    //remove on the spot
+                                    if (not QFile::remove(finalDestinationTmp))
+                                    {
+                                        //#ifdef DEBUGJOUVEN
+                                        QOUT_TS("Failed to remove (was deleted on the remote side) file " << finalDestinationTmp << endl);
+                                        //#endif
+                                    }
                                 }
                             }
                             else
@@ -656,6 +708,24 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
             }
         }
 
+        //remove non-existing keys
+        std::vector<std::string> remoteFileKeysToRemove;
+        for (const auto& remoteFileStatus_ite_con : remoteFileStatusUMAP_pri)
+        {
+            if (not remoteFileStatus_ite_con.second.iterated_pub)
+            {
+                remoteFileKeysToRemove.emplace_back(remoteFileStatus_ite_con.first);
+            }
+        }
+
+        for (const auto& remoteFileKey_ite_con : remoteFileKeysToRemove)
+        {
+#ifdef DEBUGJOUVEN
+            //QOUT_TS("(mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f) erase from remoteUmap " << QString::fromStdString(remoteFileKey_ite_con) << endl);
+#endif
+            remoteFileStatusUMAP_pri.erase(remoteFileKey_ite_con);
+        }
+
         //getAddMutex_f(QString::number(id_pri).toStdString() + "local")->unlock();
         //getAddMutex_f(QString::number(id_pri).toStdString() + "remote")->unlock();
     }
@@ -678,10 +748,17 @@ void mirrorConfigSourceDestinationMapping_c::download_f()
         currentDownloadCount_pri = currentDownloadCount_pri + 1;
         downloadInfo_s frontItem(filesToDownload_pri.front());
 
-        downloadClient_c* downloadClientObj = new downloadClient_c(sourceAddress_pri, sourceDownloadPort_pri, frontItem.source_pub, frontItem.destination_pub, qtAppRef_ext);
-        QObject::connect(downloadClientObj, &QTcpSocket::disconnected, [this]
+        downloadClient_c* downloadClientObj = new downloadClient_c(sourceAddress_pri, sourceDownloadPort_pri, frontItem, deleteThenCopy_pri, qtAppRef_ext);
+        QObject::connect(downloadClientObj, &QTcpSocket::destroyed, [this]
         {
             currentDownloadCount_pri = currentDownloadCount_pri - 1;
+            if (filesToDownload_pri.empty())
+            {
+                //so compareLocalAndRemote waits for the local scan of this mapping after a "download phase"
+                //because otherwise it will have the old hashes on the local side and it might try to download
+                //the same files again
+                initialLocalScanSet_pri = false;
+            }
         });
         QObject::connect(downloadClientObj, &QTcpSocket::disconnected, downloadClientObj, &QObject::deleteLater);
         filesToDownload_pri.erase(filesToDownload_pri.begin());
@@ -732,7 +809,9 @@ void mirrorConfigSourceDestinationMapping_c::checkValid_f()
         else
         {
             sourceAddress_pri = qHostInfoTmp.addresses().first();
+#ifdef DEBUGJOUVEN
             QOUT_TS("mirrorConfig_c::checkValid_f() sourceAddress_pri " << sourceAddress_pri.toString() << endl);
+#endif
         }
     }
 
@@ -888,8 +967,6 @@ void mirrorConfig_c::read_f(const QJsonObject &json)
 {
     selfServerAddressStr_pri = json["selfServerAddress"].toString();
     updateServerPort_pri = json["updateServerPort"].toInt();
-    //requestServerPort_pri = json["requestServerPort"].toInt();
-    //fileServerPort_pri = json["fileServerPort"].toInt();
     tryPrintRemoteFileListOnceAndQuit_pri = json["tryPrintRemoteFileListOnceAndQuit"].toBool(false);
 
     QJsonArray arrayTmp(json["sourceDestinationMappings"].toArray());
@@ -916,8 +993,6 @@ void mirrorConfig_c::write_f(QJsonObject &json) const
     json["selfServerAddress"] = selfServerAddressStr_pri;
     json["updateServerPort"] = updateServerPort_pri;
     json["tryPrintRemoteFileListOnceAndQuit"] = tryPrintRemoteFileListOnceAndQuit_pri;
-    //json["requestServerPort"] = requestServerPort_pri;
-    //json["fileServerPort"] = fileServerPort_pri;
 }
 
 void mirrorConfig_c::checkRemoteFiles_f()
@@ -985,7 +1060,7 @@ void mirrorConfig_c::initialSetup_f()
             errorStr.append(
 "Config file, config.json, doesn't exist.\nIt has to exist on the same path as the"
 R"( constantMirrorClient executable or must be target/"first argument" when calling)"
-R"( constantMirrorClient and it must have the following structure:\n)"
+R"( constantMirrorClient. It must have the following structure:)""\n"
 R"({
     "selfServerAddress": "192.168.1.5"
     , "updateServerPort": "0"
@@ -1010,16 +1085,17 @@ R"({
         }
     ]
 }
+*Everything is mandatory unless stated otherwise.
 
-"selfServerAddress" mandatory, ip/dns to use when setting a server
+"selfServerAddress" ip/dns to use when setting a server
 
-"updateServerPort" which port to use to setup the server where "servers" will make a request when something has changed on their side
+"updateServerPort" which port to use to setup a server where remote server/s will make a request when something has changed on their side
 
 "sourceDestinationMappings[x].localCheckIntervalMilliseconds" optional, interval to check for changes locally. 1000 ms by default
 
 "sourceDestinationMappings[x].remoteCheckIntervalMilliseconds" optional, interval to check for changes remotely. 15000 ms by default
 
-"sourceDestinationMappings[x].sourceAddress" ip/dns to do file requests and downloads
+"sourceDestinationMappings[x].sourceAddress" ip/dns to do file requests/downloads
 
 "sourceDestinationMappings[x].sourceRequestPort" port to do file requests
 
@@ -1027,19 +1103,19 @@ R"({
 
 "sourceDestinationMappings[x].sourcePath" remote file or directory path to fetch files from
 
-"sourceDestinationMappings[x].destinationPath" local file or directory path to save the fetched files
+"sourceDestinationMappings[x].destinationPath" optional, local file or directory path to save the fetched files, if not specified sourcePath is used as destination
 
 "sourceDestinationMappings[x].filenameFilters" optional, when dealing with a directory source (not for single files) filter filenames, all by default
 
 "sourceDestinationMappings[x].includeSubdirectories" optional, when dealing with a remote directory include/recurse subdirectories for files to fetch, true by default
 
-"sourceDestinationMappings[x].includeDirectoriesWithFileX" optional, for directory mirroring, it will only mirror remote diretories, where one of the files has a particular filename
+"sourceDestinationMappings[x].includeDirectoriesWithFileX" optional, for directory mirroring, only mirror the contents of remote diretories that contain a particular filename
 
-"sourceDestinationMappings[x].noSubdirectoriesInDestination" optional, when dealing with a remote directory include/recurse subdirectories for files to fetch, true by default
+"sourceDestinationMappings[x].noSubdirectoriesInDestination" optional, when dealing with a remote directory put all the files on the root of the destination ignoring any subdirectory structure from the remote side, this option can be dangerous if there a files with the same name in different directories
 
 "sourceDestinationMappings[x].syncDeletions" optional, sync remote deletions that happen while this process is running, on the destination, replacing will always happen despite this option, true by default
 
-"sourceDestinationMappings[x].deleteThenCopy" optional, delete the original and then copy OR rename original then copy and finally delete original, false by default)");
+"sourceDestinationMappings[x].deleteThenCopy" optional, if true delete the original and then download, if false rename original then download and finally delete original, false by default)");
                     break;
         }
 
@@ -1083,7 +1159,9 @@ R"({
     {
         if (valid_pri)
         {
+#ifdef DEBUGJOUVEN
             QOUT_TS("operationsConfig_c::initialSetup_f() valid " << endl);
+#endif
             QSslConfiguration sslOptions(QSslConfiguration::defaultConfiguration());
             sslOptions.setSslOption(QSsl::SslOptionDisableCompression, false);
             sslOptions.setPeerVerifyMode(QSslSocket::VerifyNone);
@@ -1107,8 +1185,14 @@ R"({
             {
                 tmpCycleTimeoutMilliseconds = 1;
             }
-
+            //else if the machine goes down it might not wait for the program to finish
+            if (tmpCycleTimeoutMilliseconds > 5000)
+            {
+                tmpCycleTimeoutMilliseconds = 5000;
+            }
+#ifdef DEBUGJOUVEN
             QOUT_TS("operationsConfig_c::initialSetup_f() tmpCycleTimeout " << tmpCycleTimeoutMilliseconds << endl);
+#endif
             qtCycleRef_ext->start(tmpCycleTimeoutMilliseconds);
         }
     }
@@ -1148,12 +1232,11 @@ void mirrorConfig_c::setRemoteHasUpdated_f(
         const QHostAddress &address_par_con
         , const quint16 port_par_con)
 {
-    //check if any mapping uses this port and "force" it to request the file list again
+    //check if any mapping uses this port+address and "force" it to request the file list again
     for (mirrorConfigSourceDestinationMapping_c& item_ite : sourceDestinationMappings_pri)
     {
         //it's easier to check the port first
         //check if the "port" sent/requested by the server matches
-        //any "source port" used for request (the file request)
         if (port_par_con == item_ite.sourceRequestPort_f())
         {
 #ifdef DEBUGJOUVEN
@@ -1174,7 +1257,7 @@ void mirrorConfig_c::setRemoteHasUpdated_f(
             }
             else
             {
-                //ip addresses don't match
+                //addresses don't match
             }
         }
         else
@@ -1192,14 +1275,15 @@ void mirrorConfig_c::mainLoop_f()
     {
         if (not tryPrintRemoteFileListOnceAndQuit_pri)
         {
-            //not threaded
+            //not threaded, but it's pure network so it's async event driven
             downloadFiles_f();
 
-            //threaded
+            //threaded (1 thread per mapping)
             compareLocalAndRemote_f();
 
             if (not localScanThreadExists_pri)
             {
+                //1 thread to do the local scan for all the mappings
                 threadedFunction_c* localScanThreadTmp = new threadedFunction_c(std::bind(&mirrorConfig_c::localScan_f, this), qtAppRef_ext);
                 QObject::connect(localScanThreadTmp, &QThread::destroyed, [this]
                 {
@@ -1222,7 +1306,7 @@ void mirrorConfig_c::mainLoop_f()
             }
         }
 
-        //threaded
+        //threaded (1 thread per mapping)
         checkRemoteFiles_f();
     }
     else
@@ -1239,9 +1323,11 @@ void mirrorConfig_c::mainLoop_f()
         }
         else
         {
+#ifdef DEBUGJOUVEN
             QOUT_TS("qthreads counter " << QThreadCount_f() << endl);
             QOUT_TS("eines::signal::threadCount_f() " << eines::signal::threadCount_f() << endl);
             QOUT_TS("QCoreApplication::exit();"<< endl);
+#endif
             QCoreApplication::exit();
         }
     }

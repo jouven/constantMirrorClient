@@ -23,7 +23,7 @@ public:
 
 private Q_SLOTS:
     void readyRead_f();
-    void disconnected_f();
+    //void disconnected_f();
 };
 
 #endif // CMC_UPDATESERVERSOCKET_HPP

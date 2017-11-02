@@ -67,13 +67,14 @@ CONFIG(debug, debug|release){
 QMAKE_CXXFLAGS_DEBUG -= -g
 QMAKE_CXXFLAGS_DEBUG += -pedantic -Wall -Wextra -g3
 #mingw (on msys2) can't handle lto
-!win32:QMAKE_CXXFLAGS_RELEASE += -flto
+!win32:QMAKE_CXXFLAGS_RELEASE += -flto=jobserver
+!win32:QMAKE_LFLAGS_RELEASE += -flto=jobserver
 QMAKE_CXXFLAGS_RELEASE += -mtune=sandybridge
 
+#for -flto=jobserver in the link step to work with -j4
+!win32:QMAKE_LINK = +g++
 #for some reason QMAKE defaults add this to the linker, which is useless
 QMAKE_LFLAGS -= -m64
 #only for release...
 QMAKE_LFLAGS_RELEASE -= -Wl,-O1
-
-!win32:QMAKE_LFLAGS_RELEASE += -flto
 QMAKE_LFLAGS_RELEASE += -fvisibility=hidden

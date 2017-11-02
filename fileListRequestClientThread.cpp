@@ -20,18 +20,13 @@ fileListRequestClientThread_c::fileListRequestClientThread_c(const QHostAddress 
 
 void fileListRequestClientThread_c::run()
 {
-    //with a local event loop, once it goes out of scope the eventloop object dtors kicks in,
-    //so if it has children it will destroy them too, no need to connect signal of deleteLater
-    //QEventLoop threadEventLoopTmp;
 #ifdef DEBUGJOUVEN
-    QOUT_TS("fileListRequestClientThread_c::run()" << endl);
+    //QOUT_TS("fileListRequestClientThread_c::run()" << endl);
 #endif
-
     fileListRequestClientSocket_c* fileListRequestClientSocketTmp = new fileListRequestClientSocket_c(address_pri, port_pri, destinationByteArrayRef_pri);
 
     connect(fileListRequestClientSocketTmp, &QTcpSocket::destroyed, this, &QThread::quit);
 
-    //threadEventLoopTmp.exec();
     exec();
 }
 

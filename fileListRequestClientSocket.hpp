@@ -21,7 +21,7 @@ public:
     );
 private Q_SLOTS:
     void readyRead_f();
-    void disconnected_f();
+    //void disconnected_f();
     void connected_f();
 };
 
