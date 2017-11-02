@@ -4,8 +4,6 @@
 
 #include "essentialQtso/essentialQt.hpp"
 
-#include <QEventLoop>
-
 updateServerThread_c::updateServerThread_c(const qintptr socketDescriptor_par_con
         , QObject *parent_par) :
     threadedFunction_c(parent_par)

@@ -15,7 +15,6 @@ updateServer_c::updateServer_c(
         , QObject *parent_par)
     : QTcpServer(parent_par)
 {
-
     if (this->listen(address_par_con, port_par_con))
     {
 #ifdef DEBUGJOUVEN

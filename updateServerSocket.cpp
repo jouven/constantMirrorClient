@@ -20,7 +20,7 @@ updateServerSocket_c::updateServerSocket_c(const qintptr socketDescriptor_par_co
         if (this->error() != QAbstractSocket::RemoteHostClosedError)
         {
 #ifdef DEBUGJOUVEN
-            //QOUT_TS("(updateServerSocket_c::ctor() error) his->deleteLater()" << endl);
+            //QOUT_TS("(updateServerSocket_c::ctor() error) this->deleteLater()" << endl);
 #endif
             this->deleteLater();
         }

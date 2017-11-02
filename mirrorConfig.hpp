@@ -145,12 +145,12 @@ public:
     void write_f(QJsonObject &json) const;
     void setRemoteHasUpdated_f();
     QString sourcePath_f() const;
-    QString destinationPath_f() const;
+    //QString destinationPath_f() const;
     quint16 sourceRequestPort_f() const;
-    quint16 sourceDownloadPort_f() const;
-    QString getIncludeDirectoriesWithFileX_f() const;
-    qint64 localCheckIntervalMilliseconds_f() const;
-    qint64 remoteCheckIntervalMilliseconds_f() const;
+    //quint16 sourceDownloadPort_f() const;
+    //QString getIncludeDirectoriesWithFileX_f() const;
+    //qint64 localCheckIntervalMilliseconds_f() const;
+    //qint64 remoteCheckIntervalMilliseconds_f() const;
     int_fast32_t currentDownloadCount_f() const;
     bool isValid_f() const;
 
@@ -200,21 +200,23 @@ class mirrorConfig_c : public eines::baseClassQt_c
 
     bool allRemotesTriedOnce_f() const;
     void printAllRemoteFileLists_f() const;
-public:
-    void read_f(const QJsonObject &json);
-    void write_f(QJsonObject &json) const;
-    quint16 updateServerPort_f() const;
-    uint_fast32_t maxDownloadCountGlobal_f() const;
-    //std::vector<mirrorConfigSourceDestinationMapping_c> sourceDestinationMappings_f() const;
-    void checkValid_f();
-
-    void initialSetup_f();
 
     void localScan_f();
     void checkRemoteFiles_f();
     void compareLocalAndRemote_f();
-    void mainLoop_f();
     void downloadFiles_f();
+    void checkValid_f();
+    void read_f(const QJsonObject &json);
+    void write_f(QJsonObject &json) const;
+public:
+
+    quint16 updateServerPort_f() const;
+    uint_fast32_t maxDownloadCountGlobal_f() const;
+    //std::vector<mirrorConfigSourceDestinationMapping_c> sourceDestinationMappings_f() const;
+
+    void initialSetup_f();
+    void mainLoop_f();
+
     uint_fast32_t maxCurrentDownloadCount_f() const;
     void setRemoteHasUpdated_f(const QHostAddress& address_par_con, const quint16 port_par_con);
 };

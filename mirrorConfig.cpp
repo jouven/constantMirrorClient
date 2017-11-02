@@ -41,30 +41,30 @@ QString mirrorConfigSourceDestinationMapping_c::sourcePath_f() const
     return sourcePath_pri;
 }
 
-QString mirrorConfigSourceDestinationMapping_c::destinationPath_f() const
-{
-    return destinationPath_pri;
-}
+//QString mirrorConfigSourceDestinationMapping_c::destinationPath_f() const
+//{
+//    return destinationPath_pri;
+//}
 
 quint16 mirrorConfigSourceDestinationMapping_c::sourceRequestPort_f() const
 {
     return sourceRequestPort_pri;
 }
 
-quint16 mirrorConfigSourceDestinationMapping_c::sourceDownloadPort_f() const
-{
-    return sourceDownloadPort_pri;
-}
+//quint16 mirrorConfigSourceDestinationMapping_c::sourceDownloadPort_f() const
+//{
+//    return sourceDownloadPort_pri;
+//}
 
-qint64 mirrorConfigSourceDestinationMapping_c::localCheckIntervalMilliseconds_f() const
-{
-    return localCheckIntervalMilliseconds_pri;
-}
+//qint64 mirrorConfigSourceDestinationMapping_c::localCheckIntervalMilliseconds_f() const
+//{
+//    return localCheckIntervalMilliseconds_pri;
+//}
 
-qint64 mirrorConfigSourceDestinationMapping_c::remoteCheckIntervalMilliseconds_f() const
-{
-    return remoteCheckIntervalMilliseconds_pri;
-}
+//qint64 mirrorConfigSourceDestinationMapping_c::remoteCheckIntervalMilliseconds_f() const
+//{
+//    return remoteCheckIntervalMilliseconds_pri;
+//}
 
 int_fast32_t mirrorConfigSourceDestinationMapping_c::currentDownloadCount_f() const
 {
@@ -82,10 +82,10 @@ bool mirrorConfigSourceDestinationMapping_c::isValid_f() const
 //    return localFileStatusUMAP_pri;
 //}
 
-QString mirrorConfigSourceDestinationMapping_c::getIncludeDirectoriesWithFileX_f() const
-{
-    return includeDirectoriesWithFileX_pri;
-}
+//QString mirrorConfigSourceDestinationMapping_c::getIncludeDirectoriesWithFileX_f() const
+//{
+//    return includeDirectoriesWithFileX_pri;
+//}
 
 qint64 mirrorConfigSourceDestinationMapping_c::gcdWaitMilliseconds_f() const
 {
@@ -864,7 +864,7 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemoteThread_f()
 
 void mirrorConfig_c::localScan_f()
 {
-    for (mirrorConfigSourceDestinationMapping_c& sourceDestinationMapping_ite : mirrorConfig_ext.sourceDestinationMappings_pri)
+    for (mirrorConfigSourceDestinationMapping_c& sourceDestinationMapping_ite : sourceDestinationMappings_pri)
     {
         sourceDestinationMapping_ite.localScan_f();
     }
@@ -921,7 +921,7 @@ void mirrorConfig_c::checkValid_f()
     }
 
     std::vector<int_fast64_t> validIntervals;
-    for (auto& sourceDestinationMapping_ite : sourceDestinationMappings_pri)
+    for (mirrorConfigSourceDestinationMapping_c& sourceDestinationMapping_ite : sourceDestinationMappings_pri)
     {
         sourceDestinationMapping_ite.checkValid_f();
         appendError_f(sourceDestinationMapping_ite.getError_f());
@@ -948,7 +948,7 @@ void mirrorConfig_c::checkValid_f()
             return boost::math::gcd(a, b);
         });
 
-        eines::removeIfPredicateTrue_f(mirrorConfig_ext.sourceDestinationMappings_pri, [](const auto& item_par_con){return not item_par_con->isValid_f();});
+        eines::removeIfPredicateTrue_f(sourceDestinationMappings_pri, [](const auto& item_par_con){return not item_par_con->isValid_f();});
     }
 
     valid_pri = validResult;
@@ -1140,11 +1140,11 @@ R"({
         }
         else
         {
-            mirrorConfig_ext.read_f(jsonDocObj.object());
+            read_f(jsonDocObj.object());
         }
 
-        mirrorConfig_ext.checkValid_f();
-        errorStr.append(mirrorConfig_ext.getError_f());
+        checkValid_f();
+        errorStr.append(getError_f());
 
         break;
     }
@@ -1173,8 +1173,8 @@ R"({
 
             //start the update server
             new updateServer_c(
-                        mirrorConfig_ext.selfServerAddress_pri
-                        , mirrorConfig_ext.updateServerPort_pri
+                        selfServerAddress_pri
+                        , updateServerPort_pri
                         , qtAppRef_ext
             );
             //no need it will be destroyed with the qcoreapplication instance when the program ends
