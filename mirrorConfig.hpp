@@ -8,7 +8,7 @@
 #include <QJsonObject>
 #include <QStringList>
 #include <QHostAddress>
-//#include <QHash>
+#include <QTimer>
 
 #include <chrono>
 #include <vector>
@@ -208,6 +208,8 @@ class mirrorConfig_c : public eines::baseClassQt_c
     void checkValid_f();
     void read_f(const QJsonObject &json);
     void write_f(QJsonObject &json) const;
+
+    QTimer* mainLoopTimer_pri;
 public:
 
     quint16 updateServerPort_f() const;

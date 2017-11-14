@@ -13,7 +13,6 @@
 
 #include "signalso/signal.hpp"
 
-#include "threadedFunctionQtso/threadedFunctionQt.hpp"
 #include "essentialQtso/essentialQt.hpp"
 
 #include <QCoreApplication>
@@ -39,11 +38,8 @@ int main(int argc, char *argv[])
     eines::signal::launchThread_f([&]()
     {
         QCoreApplication qtapp(argc, argv);
-        qtAppRef_ext = &qtapp;
 
         QTimer::singleShot(0, &qtapp, std::bind(&mirrorConfig_c::initialSetup_f, &mirrorConfig_ext));
-        qtCycleRef_ext = new QTimer(&qtapp);
-        QObject::connect(qtCycleRef_ext, &QTimer::timeout, qtCycleRef_ext, std::bind(&mirrorConfig_c::mainLoop_f, &mirrorConfig_ext));
 
         returnValue_ext = qtapp.exec();
     });

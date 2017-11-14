@@ -137,11 +137,11 @@ void mirrorConfigSourceDestinationMapping_c::read_f(const QJsonObject &json)
     {
         destinationPath_pri = QDir::fromNativeSeparators(originalDestinationPath_pri);
     }
-    QJsonArray jsonArrayFilenameFilters_pubTmp(json["filenameFilters"].toArray());
-    if (not jsonArrayFilenameFilters_pubTmp.isEmpty())
+    QJsonArray jsonArrayFilenameFiltersTmp(json["filenameFilters"].toArray());
+    if (not jsonArrayFilenameFiltersTmp.isEmpty())
     {
-        filenameFilters_pri.reserve(jsonArrayFilenameFilters_pubTmp.size());
-        for (const auto& jsonArrayItem_ite_con : jsonArrayFilenameFilters_pubTmp)
+        filenameFilters_pri.reserve(jsonArrayFilenameFiltersTmp.size());
+        for (const auto& jsonArrayItem_ite_con : jsonArrayFilenameFiltersTmp)
         {
             filenameFilters_pri.append(jsonArrayItem_ite_con.toString());
             //qout_glo << "jsonArrayItem_ite_con.toString() " << jsonArrayItem_ite_con.toString() << endl;
@@ -171,12 +171,12 @@ void mirrorConfigSourceDestinationMapping_c::write_f(QJsonObject &json) const
     json["destinationPath"] = destinationPath_pri;
     if (not filenameFilters_pri.isEmpty())
     {
-        QJsonArray jsonArrayFilenameFilters_pubTmp;
+        QJsonArray jsonArrayFilenameFiltersTmp;
         for (const auto& filenameFilter_ite_con : filenameFilters_pri)
         {
-            jsonArrayFilenameFilters_pubTmp.append(QJsonValue(filenameFilter_ite_con));
+            jsonArrayFilenameFiltersTmp.append(QJsonValue(filenameFilter_ite_con));
         }
-        json["filenameFilters"] = jsonArrayFilenameFilters_pubTmp;
+        json["filenameFilters"] = jsonArrayFilenameFiltersTmp;
     }
     json["includeSubdirectories"] = includeSubdirectories_pri;
     json["includeDirectoriesWithFileX"] = includeDirectoriesWithFileX_pri;
@@ -324,7 +324,7 @@ void mirrorConfigSourceDestinationMapping_c::checkRemoteFiles_f()
                 sourceAddress_pri
                 , sourceRequestPort_pri
                 , &destinationJSONByteArray_pri
-                , qtAppRef_ext
+                , qApp
     );
     //this is not threaded?, maybe lamdas are, only the requesting/reading the json data from the server
     QObject::connect(fileListRequestThreadTmp, &QThread::finished, [this]
@@ -748,7 +748,7 @@ void mirrorConfigSourceDestinationMapping_c::download_f()
         currentDownloadCount_pri = currentDownloadCount_pri + 1;
         downloadInfo_s frontItem(filesToDownload_pri.front());
 
-        downloadClient_c* downloadClientObj = new downloadClient_c(sourceAddress_pri, sourceDownloadPort_pri, frontItem, deleteThenCopy_pri, qtAppRef_ext);
+        downloadClient_c* downloadClientObj = new downloadClient_c(sourceAddress_pri, sourceDownloadPort_pri, frontItem, deleteThenCopy_pri, qApp);
         QObject::connect(downloadClientObj, &QTcpSocket::destroyed, [this]
         {
             currentDownloadCount_pri = currentDownloadCount_pri - 1;
@@ -849,7 +849,7 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemoteThread_f()
 {
     if (not compareLocalAndRemoteThreadExists_pri)
     {
-        threadedFunction_c* compareLocalAndRemoteThread_pri = new threadedFunction_c(std::bind(&mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f, this), qtAppRef_ext);
+        threadedFunction_c* compareLocalAndRemoteThread_pri = new threadedFunction_c(std::bind(&mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f, this), qApp);
         QObject::connect(compareLocalAndRemoteThread_pri, &QThread::destroyed, [this]{ compareLocalAndRemoteThreadExists_pri = false; });
         QObject::connect(compareLocalAndRemoteThread_pri, &QThread::finished, compareLocalAndRemoteThread_pri, &QThread::deleteLater);
         compareLocalAndRemoteThread_pri->start();
@@ -1018,20 +1018,20 @@ void mirrorConfig_c::initialSetup_f()
     QCoreApplication::setApplicationName("constantMirrorClientTcp");
     QCoreApplication::setApplicationVersion("1.0");
 
-    QCommandLineParser parser;
-    parser.setApplicationDescription("constantMirrorClientTcp description");
-    parser.addHelpOption();
-    parser.addVersionOption();
-    parser.addPositionalArgument("target", "Optional, config.json full path, by default it tries to read this file on the same path where the executable is");
+    QCommandLineParser commandLineParser;
+    commandLineParser.setApplicationDescription("constantMirrorClientTcp description");
+    commandLineParser.addHelpOption();
+    commandLineParser.addVersionOption();
+    commandLineParser.addPositionalArgument("target", "Optional, config.json full path, by default it tries to read this file on the same path where the executable is");
 
     //Process the actual command line arguments given by the user
-    parser.process(*qtAppRef_ext);
+    commandLineParser.process(*qApp);
 
     QString errorStr;
     while (errorStr.isEmpty())
     {
         QString configFilePathStr;
-        const QStringList parsedPositionalArgs(parser.positionalArguments());
+        const QStringList parsedPositionalArgs(commandLineParser.positionalArguments());
         if (parsedPositionalArgs.size() > 0)
         {
             QString configjsonAlternativePathStr(parsedPositionalArgs.at(0));
@@ -1175,7 +1175,7 @@ R"({
             new updateServer_c(
                         selfServerAddress_pri
                         , updateServerPort_pri
-                        , qtAppRef_ext
+                        , qApp
             );
             //no need it will be destroyed with the qcoreapplication instance when the program ends
             //QObject::connect(updateServerObj, &QTcpServer::destroyed, updateServerObj, &QObject::deleteLater);
@@ -1190,10 +1190,13 @@ R"({
             {
                 tmpCycleTimeoutMilliseconds = 5000;
             }
+
+            mainLoopTimer_pri = new QTimer(qApp);
+            QObject::connect(mainLoopTimer_pri, &QTimer::timeout, std::bind(&mirrorConfig_c::mainLoop_f, &mirrorConfig_ext));
 #ifdef DEBUGJOUVEN
             QOUT_TS("operationsConfig_c::initialSetup_f() tmpCycleTimeout " << tmpCycleTimeoutMilliseconds << endl);
 #endif
-            qtCycleRef_ext->start(tmpCycleTimeoutMilliseconds);
+            mainLoopTimer_pri->start(tmpCycleTimeoutMilliseconds);
         }
     }
 }
@@ -1284,7 +1287,7 @@ void mirrorConfig_c::mainLoop_f()
             if (not localScanThreadExists_pri)
             {
                 //1 thread to do the local scan for all the mappings
-                threadedFunction_c* localScanThreadTmp = new threadedFunction_c(std::bind(&mirrorConfig_c::localScan_f, this), qtAppRef_ext);
+                threadedFunction_c* localScanThreadTmp = new threadedFunction_c(std::bind(&mirrorConfig_c::localScan_f, this), qApp);
                 QObject::connect(localScanThreadTmp, &QThread::destroyed, [this]
                 {
                     localScanThreadExists_pri = false;
@@ -1311,20 +1314,20 @@ void mirrorConfig_c::mainLoop_f()
     }
     else
     {
-        if (eines::signal::threadCount_f() > 1 or QThreadCount_f() > 0)
+        if (eines::signal::threadCount_f() > 1 or qThreadCount_f() > 0)
         {
 //            QOUT_TS("qthreads counter " << QThreadCount_f() << endl);
 //            QOUT_TS("eines::signal::threadCount_f() " << eines::signal::threadCount_f() << endl);
             //change the interval and wait another cycle
-            if (qtCycleRef_ext->interval() != 10)
+            if (mainLoopTimer_pri->interval() != 10)
             {
-                qtCycleRef_ext->start(10);
+                mainLoopTimer_pri->start(10);
             }
         }
         else
         {
 #ifdef DEBUGJOUVEN
-            QOUT_TS("qthreads counter " << QThreadCount_f() << endl);
+            QOUT_TS("qthreads counter " << qThreadCount_f() << endl);
             QOUT_TS("eines::signal::threadCount_f() " << eines::signal::threadCount_f() << endl);
             QOUT_TS("QCoreApplication::exit();"<< endl);
 #endif
