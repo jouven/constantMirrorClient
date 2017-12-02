@@ -245,6 +245,7 @@ void mirrorConfigSourceDestinationMapping_c::localScan_f()
                 anyFileChangedTmp = hashDirectoryInUMAP_f(
                             localFileStatusUMAP_pri
                             , destinationTmp
+                            , std::string()
                             , filenameFilters_pri
                             , includeSubdirectoriesTmp
                             , includeDirectoriesWithFileX_pri
@@ -502,12 +503,15 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
 
         //saves wich remote directories hold file X when includeDirectoriesWithFileX_pri is not empty
         QSet<QString> directoryContainsFileX_pri;
-        for (auto& remoteItem_ite : remoteFileStatusUMAP_pri)
+        if (not includeDirectoriesWithFileX_pri.isEmpty())
         {
-            QFileInfo fileTmp(remoteItem_ite.second.filename_pub);
-            if (fileTmp.fileName() == includeDirectoriesWithFileX_pri)
+            for (auto& remoteItem_ite : remoteFileStatusUMAP_pri)
             {
-                directoryContainsFileX_pri.insert(fileTmp.absolutePath());
+                QFileInfo fileTmp(remoteItem_ite.second.filename_pub);
+                if (fileTmp.fileName() == includeDirectoriesWithFileX_pri)
+                {
+                    directoryContainsFileX_pri.insert(fileTmp.absolutePath());
+                }
             }
         }
 
@@ -705,25 +709,24 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
                         //no match
                     }
                 }
-            }
-        }
+                //remove non-existing keys
+                std::vector<std::string> remoteFileKeysToRemove;
+                for (const auto& remoteFileStatus_ite_con : remoteFileStatusUMAP_pri)
+                {
+                    if (not remoteFileStatus_ite_con.second.iterated_pub)
+                    {
+                        remoteFileKeysToRemove.emplace_back(remoteFileStatus_ite_con.first);
+                    }
+                }
 
-        //remove non-existing keys
-        std::vector<std::string> remoteFileKeysToRemove;
-        for (const auto& remoteFileStatus_ite_con : remoteFileStatusUMAP_pri)
-        {
-            if (not remoteFileStatus_ite_con.second.iterated_pub)
-            {
-                remoteFileKeysToRemove.emplace_back(remoteFileStatus_ite_con.first);
+                for (const auto& remoteFileKey_ite_con : remoteFileKeysToRemove)
+                {
+        #ifdef DEBUGJOUVEN
+                    //QOUT_TS("(mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f) erase from remoteUmap " << QString::fromStdString(remoteFileKey_ite_con) << endl);
+        #endif
+                    remoteFileStatusUMAP_pri.erase(remoteFileKey_ite_con);
+                }
             }
-        }
-
-        for (const auto& remoteFileKey_ite_con : remoteFileKeysToRemove)
-        {
-#ifdef DEBUGJOUVEN
-            //QOUT_TS("(mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f) erase from remoteUmap " << QString::fromStdString(remoteFileKey_ite_con) << endl);
-#endif
-            remoteFileStatusUMAP_pri.erase(remoteFileKey_ite_con);
         }
 
         //getAddMutex_f(QString::number(id_pri).toStdString() + "local")->unlock();

@@ -69,7 +69,7 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
     //get filtered files, ignore those which do not match
     QStringList filenameFilters_pri;
     bool includeSubdirectories_pri = true;
-    //for directory paths, source wise only grab files from those with a named file
+    //for directory paths, source wise, only grab files from those with a named file
     QString includeDirectoriesWithFileX_pri;
     //for directory paths, copy every source, be it on the root or on a subdirectory, to the destination root path, not creating any subdirectory on the destination
     bool noSubdirectoriesInDestination_pri = false;
