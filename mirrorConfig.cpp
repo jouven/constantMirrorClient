@@ -220,12 +220,11 @@ void mirrorConfigSourceDestinationMapping_c::localScan_f()
             //case single file
             if (destinationTmp.isFile())
             {   
-                anyFileChangedTmp = hashFileInUMAP_f(
-                            localFileStatusUMAP_pri
-                            , destinationTmp
+                anyFileChangedTmp = fileHashControl_pri.hashFileInUMAP_f(
+                            destinationTmp
                             );
                 //this is going to have only one item
-                for (const auto& localItem_ite_con: localFileStatusUMAP_pri)
+                for (const auto& localItem_ite_con: fileHashControl_pri.fileStatusUMAP_pub)
                 {
                     localHash_pri = localItem_ite_con.second.hash_pub;
                     localLastModificationTime_pri = localItem_ite_con.second.fileLastModificationDatetime_pub;
@@ -242,10 +241,8 @@ void mirrorConfigSourceDestinationMapping_c::localScan_f()
                 {
                     includeSubdirectoriesTmp = false;
                 }
-                anyFileChangedTmp = hashDirectoryInUMAP_f(
-                            localFileStatusUMAP_pri
-                            , destinationTmp
-                            , std::string()
+                anyFileChangedTmp = fileHashControl_pri.hashDirectoryInUMAP_f(
+                            destinationTmp
                             , filenameFilters_pri
                             , includeSubdirectoriesTmp
                             , includeDirectoriesWithFileX_pri
@@ -255,7 +252,7 @@ void mirrorConfigSourceDestinationMapping_c::localScan_f()
 
         //remove non-existing keys
         std::vector<std::string> localFileKeysToRemove;
-        for (auto& localFileStatus_ite : localFileStatusUMAP_pri)
+        for (auto& localFileStatus_ite : fileHashControl_pri.fileStatusUMAP_pub)
         {
             if (not localFileStatus_ite.second.iterated_pub)
             {
@@ -269,7 +266,7 @@ void mirrorConfigSourceDestinationMapping_c::localScan_f()
 
         for (const auto& localFileKey_ite_con : localFileKeysToRemove)
         {
-            auto removeResult(localFileStatusUMAP_pri.erase(localFileKey_ite_con));
+            auto removeResult(fileHashControl_pri.fileStatusUMAP_pub.erase(localFileKey_ite_con));
             if (removeResult > 0)
             {
                 anyFileChangedTmp = true;
@@ -654,9 +651,9 @@ void mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f()
                         //QOUT_TS("(mirrorConfigSourceDestinationMapping_c::compareLocalAndRemote_f) finalDestinationTmp " << finalDestinationTmp << endl);
 #endif
                         //try to compare to the local umap
-                        auto localFindResultTmp(localFileStatusUMAP_pri.find(finalDestinationTmp.toStdString()));
+                        auto localFindResultTmp(fileHashControl_pri.fileStatusUMAP_pub.find(finalDestinationTmp.toStdString()));
                         //exists locally
-                        if (localFindResultTmp != localFileStatusUMAP_pri.end())
+                        if (localFindResultTmp != fileHashControl_pri.fileStatusUMAP_pub.end())
                         {
                             if (not remoteItem_ite.second.iterated_pub)
                             {

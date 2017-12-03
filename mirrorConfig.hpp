@@ -103,8 +103,11 @@ class mirrorConfigSourceDestinationMapping_c : public eines::baseClassQt_c
     uint_fast64_t localLastModificationTime_pri = 0;
 
     //when dealing with directory mapping
+    //contains
+    //std::unordered_map<std::string, fileStatus_s> localFileStatusUMAP_pri;
+    //but it's localFileStatusUMAP_pub
     //key = localPath
-    std::unordered_map<std::string, fileStatus_s> localFileStatusUMAP_pri;
+    fileHashControl_c fileHashControl_pri;
     //key = "sourcePath"
     std::unordered_map<std::string, fileStatus_s> remoteFileStatusUMAP_pri;
 
